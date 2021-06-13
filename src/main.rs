@@ -1,28 +1,18 @@
-use std::io::{stdout, Write};
+use crossterm::cursor::MoveLeft;
 use crossterm::{
-    style::{
-        Color,
-        SetForegroundColor,
-        SetBackgroundColor,
-        Print,
-        ResetColor
-    },
-    event::{
-        KeyEvent,
-        Event,
-        read,
-        KeyCode
-    },
-    execute,
+    event::{read, Event, KeyCode, KeyEvent},
+    execute, queue,
+    style::{Color, Print, ResetColor, SetForegroundColor},
     terminal,
-    ExecutableCommand,
 };
+use std::io::{stdout, Write};
 
 fn main() -> crossterm::Result<()> {
     let mut buffer = String::new();
+    let mut stdout = stdout();
 
     execute!(
-        stdout(),
+        stdout,
         SetForegroundColor(Color::Blue),
         Print("> "),
         ResetColor
@@ -31,39 +21,43 @@ fn main() -> crossterm::Result<()> {
     terminal::enable_raw_mode()?;
     loop {
         match read()? {
-            Event::Key(KeyEvent { code, modifiers }) => {
-                match code {
-                    KeyCode::Backspace => {}
-                    KeyCode::Enter => {
-                        println!("{}", buffer);
-                        break;
+            Event::Key(KeyEvent { code, modifiers: _ }) => match code {
+                KeyCode::Backspace => {
+                    if !buffer.is_empty() {
+                        buffer.pop();
+                        queue!(stdout, MoveLeft(1), Print(" "), MoveLeft(1))?;
+                        stdout.flush()?;
                     }
-                    KeyCode::Left => {}
-                    KeyCode::Right => {}
-                    KeyCode::Up => {}
-                    KeyCode::Down => {}
-                    KeyCode::Home => {}
-                    KeyCode::End => {}
-                    KeyCode::PageUp => {}
-                    KeyCode::PageDown => {}
-                    KeyCode::Tab => {}
-                    KeyCode::BackTab => {}
-                    KeyCode::Delete => {}
-                    KeyCode::Insert => {}
-                    KeyCode::F(_) => {}
-                    KeyCode::Char(c) => {
-                        let mut char_buffer = [0; 4];
-                        let bytes = c.encode_utf8(&mut char_buffer).as_bytes();
-                        stdout().write_all(bytes)?;
-                        stdout().flush()?;
-                        buffer.push(c);
-                    }
-                    KeyCode::Null => {}
-                    KeyCode::Esc => {}
                 }
+                KeyCode::Enter => {
+                    println!("{}", buffer);
+                    break;
+                }
+                KeyCode::Left => {}
+                KeyCode::Right => {}
+                KeyCode::Up => {}
+                KeyCode::Down => {}
+                KeyCode::Home => {}
+                KeyCode::End => {}
+                KeyCode::PageUp => {}
+                KeyCode::PageDown => {}
+                KeyCode::Tab => {}
+                KeyCode::BackTab => {}
+                KeyCode::Delete => {}
+                KeyCode::Insert => {}
+                KeyCode::F(_) => {}
+                KeyCode::Char(c) => {
+                    queue!(stdout, Print(c))?;
+                    stdout.flush()?;
+                    buffer.push(c);
+                }
+                KeyCode::Null => {}
+                KeyCode::Esc => {}
+            },
+            Event::Mouse(event) => execute!(stdout, Print(format!("{:?}", event)))?,
+            Event::Resize(width, height) => {
+                execute!(stdout, Print(format!("New size {}x{}", width, height)))?
             }
-            Event::Mouse(event) => println!("{:?}", event),
-            Event::Resize(width, height) => println!("New size {}x{}", width, height),
         }
     }
     terminal::disable_raw_mode()?;
