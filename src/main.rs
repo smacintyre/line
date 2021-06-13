@@ -1,48 +1,59 @@
-use crossterm::cursor::position;
+use crossterm::cursor::{position, MoveRight, RestorePosition, SavePosition, MoveToColumn};
 use crossterm::{
     cursor::{MoveLeft, MoveToNextLine},
     event::{read, Event, KeyCode, KeyEvent},
-    style::{Color, Print, ResetColor, SetForegroundColor},
     queue,
+    style::{Color, Print, ResetColor, SetForegroundColor},
     terminal,
     terminal::{size, ScrollUp},
 };
 use std::io::{stdout, Stdout, Write};
 
 fn main() -> crossterm::Result<()> {
-    let mut buffer = String::new();
     let mut stdout = stdout();
+
+    let mut buffer = String::new();
 
     terminal::enable_raw_mode()?;
     'repl: loop {
-        let (cols, rows) = size()?;
-        let (pos_x, pos_y) = position()?;
+        let (screen_cols, screen_rows) = size()?;
 
         // Print the Prompt
         queue!(
             stdout,
             SetForegroundColor(Color::Blue),
-            Print(format!("{}x{} @{}x{} > ", cols, rows, pos_x, pos_y)),
+            Print(format!("{}x{} > ", screen_cols, screen_rows)),
             ResetColor
         )?;
 
+        stdout.flush()?;
+
+        let (input_start_col, _input_start_row) = position()?;
+
         if !(buffer.is_empty()) {
-            queue!(
-                stdout,
-                Print(&buffer),
-            )?;
+            queue!(stdout, Print(&buffer),)?;
         }
 
         stdout.flush()?;
 
         // Read each key
         'input: loop {
+            let (pos_x, _pos_y) = position()?;
             match read()? {
                 Event::Key(KeyEvent { code, modifiers: _ }) => match code {
                     KeyCode::Backspace => {
                         if !buffer.is_empty() {
-                            buffer.pop();
-                            queue!(stdout, MoveLeft(1), Print(" "), MoveLeft(1))?;
+                            let i = (pos_x - input_start_col) as usize;
+                            buffer.remove(i - 1);
+                            queue!(
+                                stdout,
+                                SavePosition,
+                                MoveToColumn(input_start_col + 1),
+                                Print(&buffer),
+                                Print(" "),
+                                RestorePosition,
+                                MoveLeft(1),
+                            )?;
                             stdout.flush()?;
                         }
                     }
@@ -56,12 +67,16 @@ fn main() -> crossterm::Result<()> {
                         }
                     }
                     KeyCode::Left => {
-                        print_message(&mut stdout, "Left!")?;
-                        break 'input;
+                        if pos_x > input_start_col {
+                            queue!(stdout, MoveLeft(1))?;
+                            stdout.flush()?;
+                        }
                     }
                     KeyCode::Right => {
-                        print_message(&mut stdout, "Right!")?;
-                        break 'input;
+                        if (pos_x as usize) < (buffer.len() + (input_start_col as usize)) {
+                            queue!(stdout, MoveRight(1))?;
+                            stdout.flush()?;
+                        }
                     }
                     KeyCode::Up => {
                         print_message(&mut stdout, "Up!")?;
@@ -81,9 +96,17 @@ fn main() -> crossterm::Result<()> {
                     KeyCode::Insert => {}
                     KeyCode::F(_) => {}
                     KeyCode::Char(c) => {
-                        queue!(stdout, Print(c))?;
+                        let i = (pos_x - input_start_col) as usize;
+                        buffer.insert(i, c);
+                        queue!(
+                            stdout,
+                            SavePosition,
+                            MoveToColumn(input_start_col + 1),
+                            Print(&buffer),
+                            RestorePosition,
+                            MoveRight(1)
+                        )?;
                         stdout.flush()?;
-                        buffer.push(c);
                     }
                     KeyCode::Null => {}
                     KeyCode::Esc => {}
