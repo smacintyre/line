@@ -92,7 +92,21 @@ fn main() -> crossterm::Result<()> {
                     KeyCode::PageDown => {}
                     KeyCode::Tab => {}
                     KeyCode::BackTab => {}
-                    KeyCode::Delete => {}
+                    KeyCode::Delete => {
+                        let i = (pos_x - input_start_col) as usize;
+                        if !buffer.is_empty() && i < buffer.len() {
+                            buffer.remove(i);
+                            queue!(
+                                stdout,
+                                SavePosition,
+                                MoveToColumn(input_start_col + 1),
+                                Print(&buffer),
+                                Print(" "),
+                                RestorePosition,
+                            )?;
+                            stdout.flush()?;
+                        }
+                    }
                     KeyCode::Insert => {}
                     KeyCode::F(_) => {}
                     KeyCode::Char(c) => {
