@@ -8,6 +8,7 @@ use crossterm::{
     terminal::{size, ScrollUp},
 };
 use std::io::{stdout, Stdout, Write};
+use crossterm::event::KeyModifiers;
 
 fn main() -> crossterm::Result<()> {
     let mut stdout = stdout();
@@ -40,7 +41,7 @@ fn main() -> crossterm::Result<()> {
         'input: loop {
             let (pos_x, _pos_y) = position()?;
             match read()? {
-                Event::Key(KeyEvent { code, modifiers: _ }) => match code {
+                Event::Key(KeyEvent { code, modifiers }) => match code {
                     KeyCode::Backspace => {
                         if !buffer.is_empty() {
                             let i = (pos_x - input_start_col) as usize;
@@ -110,6 +111,13 @@ fn main() -> crossterm::Result<()> {
                     KeyCode::Insert => {}
                     KeyCode::F(_) => {}
                     KeyCode::Char(c) => {
+                        if modifiers == KeyModifiers::CONTROL {
+                            if c == 'd' {
+                                print_message(&mut stdout, "exit")?;
+                                break 'repl;
+                            }
+                        }
+
                         let i = (pos_x - input_start_col) as usize;
                         buffer.insert(i, c);
                         queue!(
